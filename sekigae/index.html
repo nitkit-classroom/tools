@@ -259,10 +259,16 @@
   }
   .seat .seat-label { font-size: 0.58rem; color: #bbb; }
 
-  /* ── View2: 後方視点 ── */
-  .view2 .classroom { transform: scaleX(-1); }
-  .view2 .seat { transform: rotate(180deg); }
-  .view2 .seat.front-tag::after { top: auto; bottom: 2px; right: auto; left: 3px; transform: rotate(180deg); }
+  /* ── Drag & Drop ── */
+  .seat[draggable="true"] { cursor: grab; }
+  .seat[draggable="true"]:active { cursor: grabbing; }
+  .seat.drag-over {
+    border-color: var(--gold) !important;
+    border-width: 2px !important;
+    background: #fffbe8 !important;
+    box-shadow: 0 0 0 3px rgba(200,169,110,0.35) !important;
+  }
+  .seat.dragging { opacity: 0.4; }
 
   /* ── Print ── */
   @media print {
@@ -547,66 +553,103 @@ function assignSeats(colDefs, students) {
   return assignment;
 }
 
+// ─── Build seat element ──────────────────────────────────────
+function makeSeatEl(c, r) {
+  const { students, assignment } = state;
+  const si = assignment[c][r];
+  const seatDiv = document.createElement('div');
+
+  if (si !== null && si !== undefined && students[si]) {
+    const st = students[si];
+    seatDiv.className = 'seat' + (st.front ? ' front-tag' : '');
+    seatDiv.draggable = true;
+    seatDiv.dataset.col = c;
+    seatDiv.dataset.row = r;
+
+    // ① ふりがなのみの場合は大きく表示
+    if (!st.kanji) {
+      seatDiv.innerHTML = `
+        <div class="snum">${st.num}</div>
+        <div class="skanji">${st.furi}</div>
+      `;
+    } else {
+      seatDiv.innerHTML = `
+        <div class="snum">${st.num}</div>
+        <div class="sfuri">${st.furi}</div>
+        <div class="skanji">${st.kanji}</div>
+      `;
+    }
+
+    // ③ DnD events
+    seatDiv.addEventListener('dragstart', onDragStart);
+    seatDiv.addEventListener('dragend',   onDragEnd);
+    seatDiv.addEventListener('dragover',  onDragOver);
+    seatDiv.addEventListener('dragleave', onDragLeave);
+    seatDiv.addEventListener('drop',      onDrop);
+  } else {
+    seatDiv.className = 'seat empty';
+    seatDiv.dataset.col = c;
+    seatDiv.dataset.row = r;
+    seatDiv.innerHTML = `<div class="seat-label">${c+1}列${r+1}行</div>`;
+    seatDiv.addEventListener('dragover',  onDragOver);
+    seatDiv.addEventListener('dragleave', onDragLeave);
+    seatDiv.addEventListener('drop',      onDrop);
+  }
+  return seatDiv;
+}
+
 // ─── Render ──────────────────────────────────────────────────
 function render() {
   const { colDefs, students, assignment, view } = state;
   if (!colDefs.length) return;
 
+  const numCols = colDefs.length;
   const maxRows = Math.max(...colDefs);
-  const wrap = document.createElement('div');
-  wrap.className = 'classroom-wrap' + (view === 2 ? ' view2' : '');
 
-  // Podium top
-  const podTop = document.createElement('div');
-  podTop.className = 'podium';
-  podTop.textContent = view === 1 ? '教 卓' : '← 黒 板 →';
-  if (view === 2) podTop.className += ' podium-bottom';
+  const wrap = document.createElement('div');
+  wrap.className = 'classroom-wrap';
+
+  // ② 教卓のみ（← 黒板 → は削除）
+  const podium = document.createElement('div');
+  podium.className = 'podium';
+  podium.textContent = '教 卓';
 
   const classDiv = document.createElement('div');
   classDiv.className = 'classroom';
 
-  for (let c = 0; c < colDefs.length; c++) {
+  // ④ 表示2：列を右→左、行を下→上の順でDOMを組む（文字は正立のまま）
+  const colOrder = view === 2
+    ? Array.from({length: numCols}, (_, i) => numCols - 1 - i)
+    : Array.from({length: numCols}, (_, i) => i);
+
+  for (const c of colOrder) {
     const colDiv = document.createElement('div');
     colDiv.className = 'col';
 
-    for (let r = 0; r < maxRows; r++) {
-      const seatDiv = document.createElement('div');
+    const rowOrder = view === 2
+      ? Array.from({length: maxRows}, (_, i) => maxRows - 1 - i)
+      : Array.from({length: maxRows}, (_, i) => i);
+
+    for (const r of rowOrder) {
       if (r < colDefs[c]) {
-        const si = assignment[c][r];
-        if (si !== null && si !== undefined && students[si]) {
-          const st = students[si];
-          seatDiv.className = 'seat' + (st.front ? ' front-tag' : '');
-          seatDiv.innerHTML = `
-            <div class="snum">${st.num}</div>
-            <div class="sfuri">${st.furi}</div>
-            <div class="skanji">${st.kanji || '　'}</div>
-          `;
-        } else {
-          seatDiv.className = 'seat empty';
-          seatDiv.innerHTML = `<div class="seat-label">${c+1}列${r+1}行</div>`;
-        }
+        colDiv.appendChild(makeSeatEl(c, r));
       } else {
-        // Spacer for uneven columns
-        seatDiv.className = 'seat empty';
-        seatDiv.style.visibility = 'hidden';
+        const sp = document.createElement('div');
+        sp.className = 'seat empty';
+        sp.style.visibility = 'hidden';
+        colDiv.appendChild(sp);
       }
-      colDiv.appendChild(seatDiv);
     }
     classDiv.appendChild(colDiv);
   }
 
-  const podBottom = document.createElement('div');
-  podBottom.className = 'podium' + (view === 2 ? '' : ' podium-bottom');
-  podBottom.textContent = view === 2 ? '教 卓' : '← 黒 板 →';
-
+  // 表示1: 教卓→座席群、表示2: 座席群→教卓
   if (view === 1) {
-    wrap.appendChild(podTop);
+    wrap.appendChild(podium);
     wrap.appendChild(classDiv);
-    wrap.appendChild(podBottom);
   } else {
-    wrap.appendChild(podBottom);
     wrap.appendChild(classDiv);
-    wrap.appendChild(podTop);
+    wrap.appendChild(podium);
   }
 
   const main = document.getElementById('mainArea');
@@ -614,13 +657,48 @@ function render() {
   main.appendChild(wrap);
 
   // Stats
-  const seated = students.length;
   const total = colDefs.reduce((a, b) => a + b, 0);
   document.getElementById('statsText').innerHTML =
     `生徒数: <span>${students.length}</span><br>` +
     `座席数: <span>${total}</span><br>` +
-    `空席: <span>${total - seated}</span><br>` +
+    `空席: <span>${total - students.length}</span><br>` +
     `前指定: <span>${students.filter(s=>s.front).length}</span>`;
+}
+
+// ─── Drag & Drop handlers ─────────────────────────────────────
+let dragSrc = null; // {col, row}
+
+function onDragStart(e) {
+  dragSrc = { col: +this.dataset.col, row: +this.dataset.row };
+  this.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+}
+function onDragEnd() {
+  this.classList.remove('dragging');
+  document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+}
+function onDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  this.classList.add('drag-over');
+}
+function onDragLeave() {
+  this.classList.remove('drag-over');
+}
+function onDrop(e) {
+  e.preventDefault();
+  this.classList.remove('drag-over');
+  if (!dragSrc) return;
+  const dstCol = +this.dataset.col;
+  const dstRow = +this.dataset.row;
+  if (dragSrc.col === dstCol && dragSrc.row === dstRow) return;
+
+  // Swap in assignment
+  const tmp = state.assignment[dragSrc.col][dragSrc.row];
+  state.assignment[dragSrc.col][dragSrc.row] = state.assignment[dstCol][dstRow];
+  state.assignment[dstCol][dstRow] = tmp;
+  dragSrc = null;
+  render();
 }
 
 // ─── Actions ─────────────────────────────────────────────────
