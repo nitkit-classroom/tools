@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>席替えシステム</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink:    #1a1a2e;
+    --paper:  #f5f0e8;
+    --warm:   #e8e0d0;
+    --gold:   #c8a96e;
+    --muted:  #8a8070;
+    --accent: #3d5a8a;
+    --desk-bg:#d4c9b0;
+    --seat-bg:#ffffff;
+    --seat-border: #a09080;
+    --front-badge: #3d5a8a;
+    --empty-bg: #ece6da;
+    --shadow: rgba(0,0,0,0.12);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Noto Sans JP', sans-serif;
+    background: var(--warm);
+    color: var(--ink);
+    min-height: 100vh;
+  }
+
+  /* ── Header ── */
+  header {
+    background: var(--ink);
+    color: var(--paper);
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 8px var(--shadow);
+  }
+  header h1 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--gold);
+  }
+  header .subtitle {
+    font-size: 0.7rem;
+    color: var(--muted);
+    letter-spacing: 0.05em;
+  }
+  header .spacer { flex: 1; }
+
+  /* ── Layout ── */
+  .app { display: flex; min-height: calc(100vh - 52px); }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    width: 280px;
+    min-width: 260px;
+    background: var(--paper);
+    border-right: 1px solid var(--desk-bg);
+    padding: 20px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    overflow-y: auto;
+  }
+  .panel {
+    background: #fff;
+    border: 1px solid var(--warm);
+    border-radius: 8px;
+    padding: 14px;
+    box-shadow: 0 1px 3px var(--shadow);
+  }
+  .panel-title {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--warm);
+  }
+  textarea {
+    width: 100%;
+    height: 240px;
+    font-family: 'Noto Sans JP', monospace;
+    font-size: 0.72rem;
+    border: 1px solid var(--warm);
+    border-radius: 6px;
+    padding: 8px;
+    resize: vertical;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.6;
+  }
+  textarea:focus { outline: none; border-color: var(--accent); }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 9px 14px;
+    border-radius: 6px;
+    border: none;
+    font-family: inherit;
+    font-size: 0.78rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    width: 100%;
+    margin-top: 6px;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: white;
+  }
+  .btn-primary:hover { background: #2d4a7a; }
+  .btn-secondary {
+    background: var(--warm);
+    color: var(--ink);
+    border: 1px solid var(--seat-border);
+  }
+  .btn-secondary:hover { background: var(--desk-bg); }
+  .btn-gold {
+    background: var(--gold);
+    color: var(--ink);
+  }
+  .btn-gold:hover { background: #b8996e; }
+  .btn-danger {
+    background: #c0392b;
+    color: white;
+  }
+  .btn-danger:hover { background: #a93226; }
+
+  .view-toggle {
+    display: flex;
+    gap: 6px;
+  }
+  .view-toggle .btn { margin-top: 0; flex: 1; font-size: 0.72rem; padding: 7px 8px; }
+  .btn-active { background: var(--ink) !important; color: var(--paper) !important; }
+
+  .stat {
+    font-size: 0.72rem;
+    color: var(--muted);
+    line-height: 1.8;
+  }
+  .stat span { color: var(--ink); font-weight: 700; }
+
+  /* ── Main ── */
+  .main {
+    flex: 1;
+    padding: 28px 32px;
+    overflow: auto;
+  }
+
+  /* ── Classroom ── */
+  .classroom-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
+
+  .podium {
+    background: var(--ink);
+    color: var(--paper);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    padding: 8px 32px;
+    border-radius: 4px;
+    margin: 0 auto 20px;
+    display: inline-block;
+  }
+  .podium-bottom { margin-top: 20px; margin-bottom: 0; }
+
+  .classroom {
+    display: flex;
+    flex-direction: row;
+    gap: 10px;
+    align-items: flex-start;
+  }
+
+  .col {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  /* ── Seat ── */
+  .seat {
+    width: 84px;
+    height: 72px;
+    background: var(--seat-bg);
+    border: 1.5px solid var(--seat-border);
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2px 3px;
+    cursor: pointer;
+    transition: box-shadow 0.15s, border-color 0.15s;
+    position: relative;
+    box-shadow: 0 1px 3px var(--shadow);
+    overflow: hidden;
+  }
+  .seat:hover { border-color: var(--accent); box-shadow: 0 2px 8px var(--shadow); }
+  .seat.empty {
+    background: var(--empty-bg);
+    border-style: dashed;
+    border-color: #ccc;
+    cursor: default;
+  }
+  .seat.front-tag { border-color: var(--front-badge); border-width: 2px; }
+  .seat.front-tag::after {
+    content: '前';
+    position: absolute;
+    top: 2px;
+    right: 3px;
+    font-size: 0.48rem;
+    color: var(--front-badge);
+    font-weight: 700;
+  }
+  .seat .snum {
+    font-size: 0.55rem;
+    color: var(--muted);
+    line-height: 1.2;
+    font-weight: 500;
+  }
+  .seat .sfuri {
+    font-size: 0.52rem;
+    color: #555;
+    line-height: 1.2;
+    max-width: 78px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: center;
+  }
+  .seat .skanji {
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: var(--ink);
+    line-height: 1.3;
+    max-width: 78px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: center;
+  }
+  .seat .seat-label { font-size: 0.58rem; color: #bbb; }
+
+  /* ── View2: 後方視点 ── */
+  .view2 .classroom { transform: scaleX(-1); }
+  .view2 .seat { transform: rotate(180deg); }
+  .view2 .seat.front-tag::after { top: auto; bottom: 2px; right: auto; left: 3px; transform: rotate(180deg); }
+
+  /* ── Print ── */
+  @media print {
+    header, .sidebar, .btn, .panel { display: none !important; }
+    .main { padding: 0 !important; }
+    .classroom-wrap { page-break-inside: avoid; }
+    body { background: white; }
+    .seat { box-shadow: none; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    @page { size: A4 landscape; margin: 12mm; }
+  }
+
+  /* ── Error/Info ── */
+  .msg {
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-size: 0.78rem;
+    margin-top: 8px;
+  }
+  .msg-err { background: #fdecea; color: #c0392b; border: 1px solid #f5c6cb; }
+  .msg-ok  { background: #eafaf1; color: #1e8449; border: 1px solid #a9dfbf; }
+
+  /* ── Modal ── */
+  .overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.45);
+    z-index: 200;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .modal {
+    background: white;
+    border-radius: 10px;
+    padding: 24px;
+    width: 340px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+  }
+  .modal h3 { font-size: 1rem; margin-bottom: 14px; }
+  .modal p { font-size: 0.8rem; color: var(--muted); margin-bottom: 14px; line-height: 1.6; }
+  .modal-btns { display: flex; gap: 8px; }
+  .modal-btns .btn { margin-top: 0; }
+
+  .hidden { display: none !important; }
+
+  /* ── File Drop Zone ── */
+  .file-drop {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border: 2px dashed var(--seat-border);
+    border-radius: 8px;
+    padding: 20px 12px;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+    background: var(--paper);
+    text-align: center;
+    user-select: none;
+  }
+  .file-drop:hover, .file-drop.dragover {
+    border-color: var(--accent);
+    background: #eef3fa;
+  }
+  .file-drop.loaded {
+    border-style: solid;
+    border-color: #1e8449;
+    background: #eafaf1;
+  }
+  .file-drop-icon { font-size: 1.6rem; line-height: 1; }
+  .file-drop-main { font-size: 0.78rem; font-weight: 500; color: var(--ink); line-height: 1.5; }
+  .file-drop.loaded .file-drop-main { color: #1e8449; }
+  .file-drop-sub { font-size: 0.68rem; color: var(--muted); }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="subtitle">CLASSROOM SEATING SYSTEM</div>
+    <h1>席替えシステム</h1>
+  </div>
+  <div class="spacer"></div>
+  <button class="btn btn-secondary" style="width:auto;margin-top:0;font-size:0.75rem" onclick="printPage()">🖨 印刷</button>
+</header>
+
+<div class="app">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+
+    <div class="panel">
+      <div class="panel-title">コンフィグファイル</div>
+      <label class="file-drop" id="fileDrop" for="configFileInput">
+        <div class="file-drop-icon">📄</div>
+        <div class="file-drop-main" id="fileDropMain">ファイルを選択 または<br>ここにドロップ</div>
+        <div class="file-drop-sub" id="fileDropSub">.txt / .csv 対応</div>
+        <input type="file" id="configFileInput" accept=".txt,.csv,.tsv,text/plain" onchange="loadConfigFile(event)" style="display:none">
+      </label>
+      <button class="btn btn-primary" id="shuffleBtn" onclick="parseAndShuffle()" disabled>🔀 席替えを実行</button>
+      <div id="parseMsg"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">表示モード</div>
+      <div class="view-toggle">
+        <button class="btn btn-secondary btn-active" id="v1btn" onclick="setView(1)">表示1（前方）</button>
+        <button class="btn btn-secondary" id="v2btn" onclick="setView(2)">表示2（後方）</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">データ管理</div>
+      <button class="btn btn-gold" onclick="exportData()">💾 エクスポート</button>
+      <label class="btn btn-secondary" style="margin-top:6px">
+        📂 インポート
+        <input type="file" accept=".json" onchange="importData(event)" style="display:none">
+      </label>
+      <button class="btn btn-danger" onclick="confirmReset()">🗑 リセット</button>
+    </div>
+
+    <div class="panel" id="statsPanel">
+      <div class="panel-title">統計</div>
+      <div class="stat" id="statsText">—</div>
+    </div>
+
+  </aside>
+
+  <!-- Main -->
+  <main class="main" id="mainArea">
+    <div style="color:var(--muted);font-size:0.85rem;margin-top:60px;text-align:center">
+      コンフィグを入力して「席替えを実行」を押してください
+    </div>
+  </main>
+</div>
+
+<!-- Reset Modal -->
+<div class="overlay hidden" id="resetModal">
+  <div class="modal">
+    <h3>リセットの確認</h3>
+    <p>現在の座席データをすべて削除します。この操作は元に戻せません。</p>
+    <div class="modal-btns">
+      <button class="btn btn-danger" onclick="doReset()">リセットする</button>
+      <button class="btn btn-secondary" onclick="closeModal()">キャンセル</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── State ───────────────────────────────────────────────────
+let state = {
+  seats: [],
+  colDefs: [],
+  students: [],
+  assignment: [],
+  view: 1,
+};
+let configText = ''; // loaded from file
+
+// ─── File loading ─────────────────────────────────────────────
+function loadConfigFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  readConfigFile(file);
+}
+
+function readConfigFile(file) {
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    configText = ev.target.result;
+    const drop = document.getElementById('fileDrop');
+    drop.classList.add('loaded');
+    document.getElementById('fileDropMain').textContent = file.name;
+    document.getElementById('fileDropSub').textContent =
+      `${(file.size / 1024).toFixed(1)} KB`;
+    document.getElementById('shuffleBtn').disabled = false;
+    document.getElementById('parseMsg').innerHTML = '';
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+// Drag & Drop
+document.addEventListener('DOMContentLoaded', () => {
+  const drop = document.getElementById('fileDrop');
+  drop.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    drop.classList.add('dragover');
+  });
+  drop.addEventListener('dragleave', () => drop.classList.remove('dragover'));
+  drop.addEventListener('drop', (e) => {
+    e.preventDefault();
+    drop.classList.remove('dragover');
+    const file = e.dataTransfer.files[0];
+    if (file) readConfigFile(file);
+  });
+});
+
+// ─── Parse config ────────────────────────────────────────────
+function parseConfig(text) {
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+  let mode = null;
+  const colDefs = [];
+  const students = [];
+  let errors = [];
+
+  for (const line of lines) {
+    if (line.startsWith('#座席')) { mode = 'seat'; continue; }
+    if (line.startsWith('#名簿')) { mode = 'roster'; continue; }
+    if (line.startsWith('#')) continue;
+
+    if (mode === 'seat') {
+      // parse digit string e.g. "688887"
+      for (const ch of line) {
+        const n = parseInt(ch);
+        if (!isNaN(n) && n > 0) colDefs.push(n);
+      }
+    }
+    if (mode === 'roster') {
+      const parts = line.split(',').map(s => s.trim());
+      if (parts.length < 2) { errors.push(`不正な行: ${line}`); continue; }
+      const num = parts[0];
+      const furi = parts[1];
+      const kanji = parts[2] || '';
+      const note = parts[3] || '';
+      students.push({ num, furi, kanji, front: note.includes('前') });
+    }
+  }
+  if (colDefs.length === 0) errors.push('#座席 が見つかりません');
+  return { colDefs, students, errors };
+}
+
+// ─── Shuffle ─────────────────────────────────────────────────
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function assignSeats(colDefs, students) {
+  // colDefs: [6,8,8,...] = number of rows in each column (col from left)
+  // assignment[col][row]: student index or null
+  const numCols = colDefs.length;
+  const assignment = colDefs.map(n => Array(n).fill(null));
+  const totalSeats = colDefs.reduce((a, b) => a + b, 0);
+
+  const frontStudents = students.filter(s => s.front);
+  const normalStudents = students.filter(s => !s.front);
+
+  // Assign front students to row 0 (1列目), centered across columns
+  // Build list of row-0 seats sorted by center proximity
+  const row0Seats = [];
+  for (let c = 0; c < numCols; c++) {
+    if (colDefs[c] > 0) row0Seats.push(c);
+  }
+  // Sort by distance from center
+  const mid = (numCols - 1) / 2;
+  row0Seats.sort((a, b) => Math.abs(a - mid) - Math.abs(b - mid));
+  // Take only as many as frontStudents
+  const frontSlots = row0Seats.slice(0, frontStudents.length);
+  shuffle(frontStudents);
+  frontSlots.forEach((col, i) => {
+    assignment[col][0] = students.indexOf(frontStudents[i]);
+  });
+
+  // Collect remaining empty seats
+  const emptySeats = [];
+  for (let c = 0; c < numCols; c++) {
+    for (let r = 0; r < colDefs[c]; r++) {
+      if (assignment[c][r] === null) emptySeats.push([c, r]);
+    }
+  }
+  shuffle(emptySeats);
+  shuffle(normalStudents);
+
+  normalStudents.forEach((st, i) => {
+    if (i < emptySeats.length) {
+      const [c, r] = emptySeats[i];
+      assignment[c][r] = students.indexOf(st);
+    }
+  });
+
+  return assignment;
+}
+
+// ─── Render ──────────────────────────────────────────────────
+function render() {
+  const { colDefs, students, assignment, view } = state;
+  if (!colDefs.length) return;
+
+  const maxRows = Math.max(...colDefs);
+  const wrap = document.createElement('div');
+  wrap.className = 'classroom-wrap' + (view === 2 ? ' view2' : '');
+
+  // Podium top
+  const podTop = document.createElement('div');
+  podTop.className = 'podium';
+  podTop.textContent = view === 1 ? '教 卓' : '← 黒 板 →';
+  if (view === 2) podTop.className += ' podium-bottom';
+
+  const classDiv = document.createElement('div');
+  classDiv.className = 'classroom';
+
+  for (let c = 0; c < colDefs.length; c++) {
+    const colDiv = document.createElement('div');
+    colDiv.className = 'col';
+
+    for (let r = 0; r < maxRows; r++) {
+      const seatDiv = document.createElement('div');
+      if (r < colDefs[c]) {
+        const si = assignment[c][r];
+        if (si !== null && si !== undefined && students[si]) {
+          const st = students[si];
+          seatDiv.className = 'seat' + (st.front ? ' front-tag' : '');
+          seatDiv.innerHTML = `
+            <div class="snum">${st.num}</div>
+            <div class="sfuri">${st.furi}</div>
+            <div class="skanji">${st.kanji || '　'}</div>
+          `;
+        } else {
+          seatDiv.className = 'seat empty';
+          seatDiv.innerHTML = `<div class="seat-label">${c+1}列${r+1}行</div>`;
+        }
+      } else {
+        // Spacer for uneven columns
+        seatDiv.className = 'seat empty';
+        seatDiv.style.visibility = 'hidden';
+      }
+      colDiv.appendChild(seatDiv);
+    }
+    classDiv.appendChild(colDiv);
+  }
+
+  const podBottom = document.createElement('div');
+  podBottom.className = 'podium' + (view === 2 ? '' : ' podium-bottom');
+  podBottom.textContent = view === 2 ? '教 卓' : '← 黒 板 →';
+
+  if (view === 1) {
+    wrap.appendChild(podTop);
+    wrap.appendChild(classDiv);
+    wrap.appendChild(podBottom);
+  } else {
+    wrap.appendChild(podBottom);
+    wrap.appendChild(classDiv);
+    wrap.appendChild(podTop);
+  }
+
+  const main = document.getElementById('mainArea');
+  main.innerHTML = '';
+  main.appendChild(wrap);
+
+  // Stats
+  const seated = students.length;
+  const total = colDefs.reduce((a, b) => a + b, 0);
+  document.getElementById('statsText').innerHTML =
+    `生徒数: <span>${students.length}</span><br>` +
+    `座席数: <span>${total}</span><br>` +
+    `空席: <span>${total - seated}</span><br>` +
+    `前指定: <span>${students.filter(s=>s.front).length}</span>`;
+}
+
+// ─── Actions ─────────────────────────────────────────────────
+function parseAndShuffle() {
+  if (!configText) {
+    document.getElementById('parseMsg').innerHTML =
+      '<div class="msg msg-err">コンフィグファイルを読み込んでください</div>';
+    return;
+  }
+  const { colDefs, students, errors } = parseConfig(configText);
+  const msgEl = document.getElementById('parseMsg');
+
+  if (errors.length) {
+    msgEl.innerHTML = `<div class="msg msg-err">${errors.join('<br>')}</div>`;
+    return;
+  }
+  if (students.length === 0) {
+    msgEl.innerHTML = `<div class="msg msg-err">#名簿 に生徒が登録されていません</div>`;
+    return;
+  }
+  const total = colDefs.reduce((a, b) => a + b, 0);
+  if (students.length > total) {
+    msgEl.innerHTML = `<div class="msg msg-err">生徒数(${students.length})が座席数(${total})を超えています</div>`;
+    return;
+  }
+
+  state.colDefs = colDefs;
+  state.students = students;
+  state.assignment = assignSeats(colDefs, students);
+  msgEl.innerHTML = `<div class="msg msg-ok">✓ 席替え完了（${students.length}名）</div>`;
+  render();
+}
+
+function setView(v) {
+  state.view = v;
+  document.getElementById('v1btn').classList.toggle('btn-active', v === 1);
+  document.getElementById('v2btn').classList.toggle('btn-active', v === 2);
+  render();
+}
+
+function printPage() { window.print(); }
+
+// ─── Export / Import ─────────────────────────────────────────
+function exportData() {
+  if (!state.colDefs.length) {
+    alert('エクスポートするデータがありません。先に席替えを実行してください。');
+    return;
+  }
+  const data = {
+    version: 1,
+    colDefs: state.colDefs,
+    students: state.students,
+    assignment: state.assignment,
+    exportedAt: new Date().toISOString(),
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const d = new Date();
+  a.download = `seating_${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importData(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if (!data.colDefs || !data.students || !data.assignment) throw new Error('不正なファイル形式');
+      state.colDefs = data.colDefs;
+      state.students = data.students;
+      state.assignment = data.assignment;
+      document.getElementById('parseMsg').innerHTML =
+        `<div class="msg msg-ok">✓ インポート完了（${data.students.length}名）</div>`;
+      render();
+    } catch(err) {
+      alert('インポートに失敗しました: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+}
+
+// ─── Reset ───────────────────────────────────────────────────
+function confirmReset() { document.getElementById('resetModal').classList.remove('hidden'); }
+function closeModal() { document.getElementById('resetModal').classList.add('hidden'); }
+function doReset() {
+  state = { seats: [], colDefs: [], students: [], assignment: [], view: 1 };
+  configText = '';
+  document.getElementById('mainArea').innerHTML =
+    '<div style="color:var(--muted);font-size:0.85rem;margin-top:60px;text-align:center">コンフィグファイルを読み込んで「席替えを実行」を押してください</div>';
+  const drop = document.getElementById('fileDrop');
+  drop.classList.remove('loaded');
+  document.getElementById('fileDropMain').innerHTML = 'ファイルを選択 または<br>ここにドロップ';
+  document.getElementById('fileDropSub').textContent = '.txt / .csv 対応';
+  document.getElementById('configFileInput').value = '';
+  document.getElementById('shuffleBtn').disabled = true;
+  document.getElementById('parseMsg').innerHTML = '';
+  document.getElementById('statsText').textContent = '—';
+  closeModal();
+}
+</script>
+</body>
+</html>
