@@ -1,0 +1,1 @@
+[席替えページ](./sekigae/index.html)
